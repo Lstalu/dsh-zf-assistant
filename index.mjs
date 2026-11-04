@@ -187,7 +187,7 @@ function send(args = {}) {
   state.sendCount += bytes.length
   const r = state.transport.send(bytes)
   if (!r.ok) return r
-  return { ok: true, bytes: bytes.length, message: '已发送 ' + bytes.length + ' 字节' }
+  return { ok: true, bytes: bytes.length, hex: bytesToHex(bytes), message: '已发送 ' + bytes.length + ' 字节' }
 }
 
 // ---------- 控制台数据（串口/网络调试视图用） ----------
