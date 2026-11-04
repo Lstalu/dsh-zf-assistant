@@ -1,0 +1,43 @@
+{
+  "name": "dsh-zf-assistant",
+  "description": "内置智能串口助手：经 WiFi(TCP/UDP) 或串口与单片机收发数据，逐帧解析，实时显示多通道示波器/图像/hex 日志，并支持 AI 自动化调参（mcu_* 工具）。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "lib/",
+    "bridge/",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.7 || >=0.2.0-0 <0.3.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "seekfree",
+    "zf",
+    "oscilloscope",
+    "serial",
+    "wifi",
+    "mc-debug"
+  ],
+  "license": "MIT"
+}

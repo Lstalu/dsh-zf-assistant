@@ -1,0 +1,4 @@
+# dsh-zf-assistant bundle patch: mounts the plugin into a profile layer stack.
+- insert:
+    - id: zf-assistant
+      name: dsh-zf-assistant
