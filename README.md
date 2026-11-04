@@ -1,17 +1,39 @@
-# dsh-zf-assistant
+# dsh-zf-assistant · 内置智能串口助手
 
-让 DeepSeek Harness（DSH）像逐飞助手一样与单片机建立联系：经 **WiFi(TCP/UDP)** 收发数据，按可配置协议解析成多通道波形 / 摄像头图像，实时显示，并支持 **AI 自动化调参**（Agent 读数据→分析→下发）。
+DeepSeek Harness（DSH）的设备调试插件：经 **WiFi(TCP/UDP)** 或 **串口** 与单片机收发数据，按可配置协议解析成多通道波形 / 摄像头图像，实时显示，并支持 **AI 自动化调参**（Agent 读数据 → 分析 → 下发）。
 
 ## 功能
-- **传输**（可选）：`tcp-server`（本机监听，单片机 WiFi 模块连入）、`tcp-client`（主动连）、`udp`、`serial`（串口桥接，经 PowerShell `System.IO.Ports`，需 COM 口 + 波特率）。
-- **协议**（可选）：`json`（推荐，含图像）、`custom`（自定义二进制帧）、`zf`（逐飞 0xAA 示波器帧）、`text`（单片机 printf 的键值行，如 `L:0, R:0, Kp:13.0`）。
-- **视图**（浏览器「设置 → 设备调试」面板）：选择界面 + 实时多通道示波器 + 图像显示 + 日志。
-- **AI 工具**：`mcu_connect / mcu_disconnect / mcu_status / mcu_send / mcu_read_wave（含每通道 min/max/mean/std/last 指标）/ mcu_capture_img / mcu_list_ports`。
 
-## 快速开始
-1. 确保插件已被 DSH web profile 加载（`profiles/web` 的 `dsh.profile.bundles` 含 `dsh-zf-assistant`，并重建/刷新 web 产物）。
-2. 打开「设置 → 设备调试」，选连接方式与协议，点「连接」。
-3. 单片机侧：用逐飞 `zf_device_wifi_uart` 或任意 WiFi 透传模块，把目标设为本机 IP:监听端口，TCP 连入即可；或选「串口」选 COM 口与波特率直连。
+### 四个面板（左侧栏「设备调试」→ 浮窗）
+- **串口助手**：收发日志、ASCII/HEX、时间戳、自动发送、保存数据。
+- **示波器**：多通道实时曲线，0 点居中、x=0 红线；滚轮等比缩放、拖拽平移；四个坐标量（X/Y 起点、长度）可手动输入并可「锁定」；通道开关（点亮/熄灭，熄灭的通道不画线、也不计入自动范围）；配色跟随主题深浅自动切换。
+- **图像传输**：实时帧显示、保存图片（PNG）、录制视频（WebM）、二值化预览、原始尺寸/自适应/百分比三种显示模式，底部状态栏显示宽高 / FPS / 字节每秒。
+- **参数调试**：8 通道滑块 + 微调 + 单通道「下发」或「全部下发」，下发格式为逐飞 `0x55` 参数帧；每个通道可自定义名称、最小值、最大值、步进（存 localStorage）。
+- **通道设置**：参数调试页顶部按钮，展开后可改每个通道的命名 / 最小 / 最大 / 步进，`重建默认` 恢复内置值。
+
+### 浮窗与外观
+- 侧栏「设备调试」打开浮窗；标题栏可拖动、八向拖边缩放，位置与尺寸记忆。
+- 右上角 `🎨` 打开调色盘：12 个预设色 + 自定义取色，背景与文字自动适配明暗，示波器配色跟着一起变。
+- 标题栏 `−/+` 缩放整个面板（40%–130%），主窗与参数窗各自独立记忆。
+
+### 传输
+`tcp-server`（本机监听，单片机 WiFi 模块连入）、`tcp-client`（主动连）、`udp`、`serial`（串口桥接，经 PowerShell `System.IO.Ports`，需 COM 口 + 波特率）。
+
+### 协议
+`json`（含图像）、`custom`（自定义二进制帧）、`zf`（逐飞 `0xAA` 示波器帧 / `0x55` 参数帧）、`text`（单片机 printf 的键值行，如 `L:0, R:0, Kp:13.0`）。
+
+### AI 工具
+`mcu_connect / mcu_disconnect / mcu_status / mcu_send / mcu_read_wave`（含每通道 min/max/mean/std/last 指标）`/ mcu_capture_img / mcu_list_ports`。
+
+## 安装
+
+把本目录作为一个 DSH 插件包安装，并确保 profile 的 `dsh.profile.bundles` 里含 `dsh-zf-assistant`：
+
+```bash
+dsh plugin add <path-to-this-package>
+```
+
+重启 DSH 后打开左侧栏「设备调试」，选连接方式与协议，点「连接」。
 
 > 串口桥接需要 PowerShell（`powershell.exe`，可用环境变量 `ZF_POWERSHELL` 覆盖为 `pwsh`）；真实串口数据需连上单片机 COM 口实测。
 
@@ -34,7 +56,7 @@
 ```
 
 ## 写入协议（下发通道值时选择哪种编码）
-面板「设置→设备调试」顶部有 **写入协议** 下拉：`跟随接收`（用当前协议 encode）/ `JSON`（发一行 `{"ch":[...]}`）/ `二进制帧`（按帧配置打包）。`mcu_send` 的 `format` 参数对应 `follow|json|binary`。
+面板顶部有 **写入协议** 下拉：`跟随接收`（用当前协议 encode）/ `JSON`（发一行 `{"ch":[...]}`）/ `二进制帧`（按帧配置打包）。`mcu_send` 的 `format` 参数对应 `follow|json|binary`。
 
 ## 文本键值行（text）
 单片机用 `printf` 打印一行 `name:value, name:value\r\n` 就能直接出示波器，不必改二进制帧：
@@ -51,8 +73,8 @@ L:0, R:0, GL:113, GR:127, Kp:13.0, Ki:0.9, Kd:0.0, ch:1.2
 `mcu_status` 与面板状态行都会显示 **解析帧数 / 失败次数**。若「字节在涨、解析 0 帧」，说明协议和数据格式不匹配（例如设备在 printf 键值行，而协议选成了 `zf`），面板会直接红字提示并把 `text` 作为建议。
 
 ## 逐飞协议（已从 STC32G144K 开源库 seekfree_assistant.c/.h 核准）
-- **上行示波器帧**（单片机→PC）：`[0xAA, 0x10|通道数, 和校验, 长度, float大端×通道数]`。选协议 `zf` 时插件按此解析，示波器出波形。
-- **下行参数帧**（PC→单片机，即下发调参）：`[0x55, 0x20, 通道号(1-based), 和校验, float大端4B]`。选协议 `zf` + 写入 `跟随接收/二进制帧` 时，`mcu_send`/参数调试面板按此下发，`0x55` 帧头 + `0x20` 参数功能。
+- **上行示波器帧**（单片机→PC）：`[0xAA, 0x10|通道数, 和校验, 长度, float 大端 × 通道数]`。选协议 `zf` 时插件按此解析，示波器出波形。
+- **下行参数帧**（PC→单片机，即下发调参）：`[0x55, 0x20, 通道号(1-based), 和校验, float 大端 4B]`。选协议 `zf` + 写入 `跟随接收/二进制帧` 时，`mcu_send` / 参数调试面板按此下发，`0x55` 帧头 + `0x20` 参数功能。
 
 ### 通道→参数映射（king_project Motor.c，下发调参时请把「通道」设为 7）
 | 通道 | 参数 |
