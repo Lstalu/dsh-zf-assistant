@@ -20,6 +20,8 @@ const state = {
   sendCount: 0,
   // 协议层可观测性：收到字节 ≠ 解析出样本。字节在涨而 parsed 不涨，就说明协议不匹配。
   feed: { parsed: 0, errors: 0, lastError: '' },
+  // 前端示波器「加载数据」推上来的波形（只在内存，重启即失）：{ name, waves:[{t, ch:[]}], at }
+  importedScope: null,
   createdAt: Date.now(),
 }
 
@@ -129,6 +131,32 @@ function disconnect() {
   if (state.transport) { try { state.transport.disconnect() } catch (e) {} }
   state.status = 'closed'
   return { ok: true, message: '已断开' }
+}
+
+const r3 = (x) => Math.round(Number(x) * 1000) / 1000
+
+// 前端示波器「加载数据」推上来的波形摘要：每通道统计 + 可选抽样点
+function scopeSummary(sample = 0) {
+  const s = state.importedScope
+  if (!s || !Array.isArray(s.waves) || !s.waves.length) {
+    return { ok: false, message: '没有导入的波形：请在前端示波器点「加载数据」' }
+  }
+  const waves = s.waves
+  const nCh = Math.max(1, ...waves.map((w) => (Array.isArray(w.ch) ? w.ch.length : 0)))
+  const stats = []
+  for (let k = 0; k < nCh; k++) {
+    const ys = waves.map((w) => Number(w.ch && w.ch[k]) || 0)
+    const n = ys.length
+    const mean = ys.reduce((a, b) => a + b, 0) / n
+    const varr = ys.reduce((a, b) => a + (b - mean) * (b - mean), 0) / n
+    let mn = Infinity, mx = -Infinity
+    for (const v of ys) { if (v < mn) mn = v; if (v > mx) mx = v }
+    stats.push({ ch: k, n, min: r3(mn), max: r3(mx), mean: r3(mean), std: r3(Math.sqrt(varr)), last: r3(ys[n - 1]) })
+  }
+  const out = { ok: true, name: s.name, at: s.at, points: waves.length, channels: nCh, stats }
+  const n = Math.max(0, Math.min(2000, Number(sample) || 0))
+  if (n > 0) out.sample = waves.slice(-n)
+  return out
 }
 
 function status() {
@@ -425,6 +453,26 @@ function apply(ctx) {
     async execute() { return listPorts() },
   }))
 
+  makeTool(defineTool({
+    name: 'mcu_scope_read',
+    description: '读取前端示波器「加载数据」导入的波形（CSV），返回每通道统计（min/max/mean/std/last）与可选抽样点，用于让助手分析同一份波形。未导入时返回 ok:false。',
+    parameters: {
+      sample: { type: 'number', description: '返回最近多少个采样点，0 表示只要统计（默认 0，最多 2000）' },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true, properties: { ok: { type: 'boolean', required: true } } },
+      render(args, value) {
+        if (!value || !value.ok) return [{ type: 'text', text: '未导入波形：' + ((value && value.message) || '') }]
+        const lines = ['导入波形: ' + value.name + '  点数: ' + value.points + '  通道: ' + value.channels]
+        for (const s of value.stats || []) {
+          lines.push('ch' + s.ch + '  min ' + s.min + '  max ' + s.max + '  mean ' + s.mean + '  std ' + s.std + '  last ' + s.last)
+        }
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
+    },
+    async execute(args) { return scopeSummary(Number((args && args.sample) || 0)) },
+  }))
+
   // ---------- /seekfree-api/* REST + poll 流 ----------
   ctx.inject(['webServer'], (webCtx) => {
     const webServer = webCtx.webServer
@@ -466,6 +514,21 @@ function apply(ctx) {
     webServer.register({ kind: 'exact', path: '/seekfree-api/console', handler: route('GET', async (a, req) => {
       const url = new URL(req.url, 'http://x')
       return consoleDump(Number(url.searchParams.get('n') || 100))
+    }) })
+    // 前端示波器「加载数据」把波形推上来，助手侧通过 mcu_scope_read 读同一份
+    webServer.register({ kind: 'exact', path: '/seekfree-api/scope/import', handler: route('POST', async (a) => {
+      const waves = Array.isArray(a && a.waves) ? a.waves : []
+      if (!waves.length) return { ok: false, message: 'waves 为空' }
+      state.importedScope = {
+        name: String((a && a.name) || 'scope.csv'),
+        waves,
+        at: Date.now(),
+      }
+      return { ok: true, name: state.importedScope.name, count: waves.length }
+    }) })
+    webServer.register({ kind: 'exact', path: '/seekfree-api/scope/imported', handler: route('GET', async (a, req) => {
+      const url = new URL(req.url, 'http://x')
+      return scopeSummary(Number(url.searchParams.get('sample') || 0))
     }) })
   })
 
