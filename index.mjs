@@ -467,6 +467,14 @@ function apply(ctx) {
         for (const s of value.stats || []) {
           lines.push('ch' + s.ch + '  min ' + s.min + '  max ' + s.max + '  mean ' + s.mean + '  std ' + s.std + '  last ' + s.last)
         }
+        if (Array.isArray(value.sample) && value.sample.length) {
+          lines.push('', '最近 ' + value.sample.length + ' 个采样点（最多显示 20 行）:')
+          const tail = value.sample.slice(-20)
+          for (const w of tail) {
+            const chs = Array.isArray(w.ch) ? w.ch.join(', ') : String(w.ch)
+            lines.push('  t=' + w.t + '  [' + chs + ']')
+          }
+        }
         return [{ type: 'text', text: lines.join('\n') }]
       },
     },
